@@ -3,13 +3,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Sparkles, Eye, EyeOff, Zap } from 'lucide-react';
+import { Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
 const schema = z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
 }).refine(d => d.password === d.confirmPassword, {
@@ -20,10 +20,9 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Register() {
-  const { signUp, loginAsDemo } = useAuth();
+  const { signUp } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [isDemoLoggingIn, setIsDemoLoggingIn] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -36,20 +35,7 @@ export default function Register() {
       navigate('/dashboard');
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : 'Registration failed';
-      toast.error(msg.includes('already registered') ? 'Email already in use. Try signing in directly.' : msg);
-    }
-  };
-
-  const handleDemoLogin = async () => {
-    setIsDemoLoggingIn(true);
-    try {
-      await loginAsDemo();
-      toast.success('Signed in as Demo User!');
-      navigate('/dashboard');
-    } catch (err: any) {
-      toast.error('Demo login failed: ' + (err.message || 'Please try again'));
-    } finally {
-      setIsDemoLoggingIn(false);
+      toast.error(msg);
     }
   };
 
@@ -65,50 +51,57 @@ export default function Register() {
           </Link>
         </div>
 
-        <div className="card shadow-lg border border-purple-100">
-          <h1 className="text-2xl font-display font-bold text-gray-900 mb-1">Create your account</h1>
-          <p className="text-gray-500 text-sm mb-6">Start your personal style journey</p>
-
-          {/* Quick Demo Login Button */}
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            disabled={isDemoLoggingIn}
-            className="w-full mb-6 py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all duration-200 transform hover:-translate-y-0.5"
-          >
-            <Zap className="w-5 h-5 fill-current text-yellow-300" />
-            {isDemoLoggingIn ? 'Logging into Demo...' : '⚡ 1-Click Instant Demo Access'}
-          </button>
-
-          <div className="relative flex py-2 items-center mb-6">
-            <div className="flex-grow border-t border-gray-200"></div>
-            <span className="flex-shrink mx-4 text-xs font-medium text-gray-400 uppercase tracking-wider">or register with email</span>
-            <div className="flex-grow border-t border-gray-200"></div>
-          </div>
+        <div className="card shadow-lg border border-gray-100">
+          <h1 className="text-2xl font-display font-bold text-gray-900 mb-1">Create Account</h1>
+          <p className="text-gray-500 text-sm mb-6">Start your personal AI style journey</p>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             <div>
-              <label htmlFor="full_name" className="label">Full name</label>
-              <input id="full_name" type="text" autoComplete="name" className="input-field"
-                placeholder="Your full name" {...register('full_name')} aria-invalid={!!errors.full_name} />
+              <label htmlFor="full_name" className="label">Full Name</label>
+              <input
+                id="full_name"
+                type="text"
+                autoComplete="name"
+                className="input-field"
+                placeholder="Your full name"
+                {...register('full_name')}
+                aria-invalid={!!errors.full_name}
+              />
               {errors.full_name && <p className="error-text">{errors.full_name.message}</p>}
             </div>
 
             <div>
-              <label htmlFor="email" className="label">Email address</label>
-              <input id="email" type="email" autoComplete="email" className="input-field"
-                placeholder="you@example.com" {...register('email')} aria-invalid={!!errors.email} />
+              <label htmlFor="email" className="label">Email Address</label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                className="input-field"
+                placeholder="you@example.com"
+                {...register('email')}
+                aria-invalid={!!errors.email}
+              />
               {errors.email && <p className="error-text">{errors.email.message}</p>}
             </div>
 
             <div>
               <label htmlFor="password" className="label">Password</label>
               <div className="relative">
-                <input id="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password"
-                  className="input-field pr-10" placeholder="Min. 6 characters" {...register('password')} aria-invalid={!!errors.password} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  className="input-field pr-10"
+                  placeholder="Min. 6 characters"
+                  {...register('password')}
+                  aria-invalid={!!errors.password}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
@@ -116,20 +109,29 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="label">Confirm password</label>
-              <input id="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password"
-                className="input-field" placeholder="Repeat your password" {...register('confirmPassword')} aria-invalid={!!errors.confirmPassword} />
+              <label htmlFor="confirmPassword" className="label">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                className="input-field"
+                placeholder="Repeat your password"
+                {...register('confirmPassword')}
+                aria-invalid={!!errors.confirmPassword}
+              />
               {errors.confirmPassword && <p className="error-text">{errors.confirmPassword.message}</p>}
             </div>
 
             <button type="submit" className="btn-primary w-full py-3" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating account...' : 'Create Account (Instant Verification)'}
+              {isSubmitting ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
 
           <p className="text-center text-sm text-gray-500 mt-6">
             Already have an account?{' '}
-            <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">Sign in</Link>
+            <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+              Sign In
+            </Link>
           </p>
         </div>
       </div>

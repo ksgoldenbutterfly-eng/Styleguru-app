@@ -5,43 +5,18 @@ import { supabaseAdmin, supabaseConfigured } from '../config/supabase';
 export const authRouter = Router();
 
 const signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  full_name: z.string().min(1).default('Fashion Enthusiast'),
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  full_name: z.string().min(1, 'Name is required').default('Fashion Enthusiast'),
 });
 
-const DEMO_EMAIL = 'demo@styleguru.com';
-const DEMO_PASSWORD = 'StyleGuruDemo123!';
+const resetPasswordSchema = z.object({
+  email: z.string().email(),
+  new_password: z.string().min(6),
+});
 
-// Ensure demo user exists in Supabase
-async function ensureDemoUser() {
-  if (!supabaseAdmin) return null;
-  try {
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
-    const existing = usersData?.users?.find(u => u.email === DEMO_EMAIL);
-    if (existing) {
-      return existing;
-    }
-
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email: DEMO_EMAIL,
-      password: DEMO_PASSWORD,
-      email_confirm: true,
-      user_metadata: { full_name: 'Demo Fashionista' },
-    });
-
-    if (error) {
-      console.warn('Could not auto-create demo user:', error.message);
-      return null;
-    }
-    return data.user;
-  } catch (err: any) {
-    console.warn('Error ensuring demo user:', err.message);
-    return null;
-  }
-}
-
-// POST /api/v1/auth/signup - Admin creates user with email_confirm: true (ZERO email limit / ZERO confirmation delays)
+// POST /api/v1/auth/signup
+// Handles user registration cleanly with automatic email confirmation (no SMTP limit issues)
 authRouter.post('/signup', async (req: Request, res: Response): Promise<void> => {
   try {
     const parsed = signupSchema.safeParse(req.body);
@@ -53,68 +28,107 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void> =>
     const { email, password, full_name } = parsed.data;
 
     if (!supabaseConfigured || !supabaseAdmin) {
-      res.status(503).json({ error: 'Supabase is not configured on the backend.' });
+      res.status(503).json({ error: 'Authentication service not ready.' });
       return;
     }
 
-    // Create user with email pre-confirmed
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
+    // Check if user already exists
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = usersData?.users?.find(
+      u => u.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    let userId: string;
+
+    if (existingUser) {
+      // Update password and confirm email so user can sign in immediately
+      const { data: updatedData, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUser.id,
+        {
+          password,
+          email_confirm: true,
+          user_metadata: { full_name },
+        }
+      );
+
+      if (updateError) {
+        res.status(400).json({ error: updateError.message });
+        return;
+      }
+
+      userId = updatedData.user.id;
+    } else {
+      // Create new user with pre-confirmed email (bypasses Supabase email rate limit)
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name },
+      });
+
+      if (error) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+
+      userId = data.user.id;
+    }
+
+    // Ensure profile row exists if database table is ready
+    try {
+      await supabaseAdmin.from('profiles').upsert({
+        id: userId,
+        full_name,
+        onboarding_completed: false,
+      });
+    } catch {}
+
+    res.status(200).json({
+      message: 'Account ready',
+      user: { id: userId, email },
+    });
+  } catch (err: any) {
+    console.error('Signup error:', err);
+    res.status(500).json({ error: 'Failed to process registration. Please try again.' });
+  }
+});
+
+// POST /api/v1/auth/reset-password
+authRouter.post('/reset-password', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid input' });
+      return;
+    }
+
+    const { email, new_password } = parsed.data;
+
+    if (!supabaseConfigured || !supabaseAdmin) {
+      res.status(503).json({ error: 'Auth service unavailable' });
+      return;
+    }
+
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
+    const user = usersData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+
+    if (!user) {
+      res.status(404).json({ error: 'No account found with this email address' });
+      return;
+    }
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: new_password,
       email_confirm: true,
-      user_metadata: { full_name },
     });
 
     if (error) {
-      // If user already registered, provide clean message
-      if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already exists')) {
-        res.status(409).json({ error: 'Email already registered. You can sign in directly.' });
-        return;
-      }
       res.status(400).json({ error: error.message });
       return;
     }
 
-    // Try to auto-create profile if table exists
-    try {
-      if (data?.user) {
-        await supabaseAdmin.from('profiles').upsert({
-          id: data.user.id,
-          full_name,
-          onboarding_completed: false,
-        });
-      }
-    } catch {
-      // Ignore if table not yet created
-    }
-
-    res.status(201).json({
-      message: 'Account created and verified instantly!',
-      user: {
-        id: data.user?.id,
-        email: data.user?.email,
-      },
-    });
+    res.json({ message: 'Password reset successfully' });
   } catch (err: any) {
-    console.error('Signup error:', err);
-    res.status(500).json({ error: 'Failed to create account. Please try again.' });
-  }
-});
-
-// POST /api/v1/auth/demo - Get or setup demo user credentials for instant 1-click login
-authRouter.post('/demo', async (_req: Request, res: Response): Promise<void> => {
-  try {
-    await ensureDemoUser();
-    res.json({
-      email: DEMO_EMAIL,
-      password: DEMO_PASSWORD,
-      message: 'Demo credentials ready',
-    });
-  } catch (err: any) {
-    console.error('Demo auth error:', err);
-    res.json({
-      email: DEMO_EMAIL,
-      password: DEMO_PASSWORD,
-    });
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
