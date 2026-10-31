@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import { rateLimit } from 'express-rate-limit';
 import { profileRouter } from './routes/profile';
+import { authRouter } from './routes/auth';
 import { wardrobeRouter } from './routes/wardrobe';
 import { outfitsRouter } from './routes/outfits';
 import { analysisRouter } from './routes/analysis';
@@ -49,6 +50,7 @@ app.get('/api/v1/health', (_req, res) => {
 });
 
 // Routes
+app.use('/api/v1/auth', authRouter);
 app.use('/api/v1', profileRouter);
 app.use('/api/v1', wardrobeRouter);
 app.use('/api/v1', outfitsRouter);

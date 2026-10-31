@@ -3,14 +3,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, Zap } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
 const schema = z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters').max(100),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
 }).refine(d => d.password === d.confirmPassword, {
   message: 'Passwords do not match',
@@ -20,9 +20,10 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Register() {
-  const { signUp } = useAuth();
+  const { signUp, loginAsDemo } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [isDemoLoggingIn, setIsDemoLoggingIn] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -31,29 +32,59 @@ export default function Register() {
   const onSubmit = async (data: FormData) => {
     try {
       await signUp(data.email, data.password, data.full_name);
-      toast.success('Account created! Please check your email to verify.');
-      navigate('/onboarding');
-    } catch (err) {
+      toast.success('Account created! Welcome to StyleGuru.');
+      navigate('/dashboard');
+    } catch (err: any) {
       const msg = err instanceof Error ? err.message : 'Registration failed';
-      toast.error(msg.includes('already registered') ? 'Email already in use. Try logging in.' : msg);
+      toast.error(msg.includes('already registered') ? 'Email already in use. Try signing in directly.' : msg);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setIsDemoLoggingIn(true);
+    try {
+      await loginAsDemo();
+      toast.success('Signed in as Demo User!');
+      navigate('/dashboard');
+    } catch (err: any) {
+      toast.error('Demo login failed: ' + (err.message || 'Please try again'));
+    } finally {
+      setIsDemoLoggingIn(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <span className="font-display font-bold text-2xl text-gray-900">StyleGuru</span>
           </Link>
         </div>
 
-        <div className="card">
+        <div className="card shadow-lg border border-purple-100">
           <h1 className="text-2xl font-display font-bold text-gray-900 mb-1">Create your account</h1>
           <p className="text-gray-500 text-sm mb-6">Start your personal style journey</p>
+
+          {/* Quick Demo Login Button */}
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            disabled={isDemoLoggingIn}
+            className="w-full mb-6 py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all duration-200 transform hover:-translate-y-0.5"
+          >
+            <Zap className="w-5 h-5 fill-current text-yellow-300" />
+            {isDemoLoggingIn ? 'Logging into Demo...' : '⚡ 1-Click Instant Demo Access'}
+          </button>
+
+          <div className="relative flex py-2 items-center mb-6">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="flex-shrink mx-4 text-xs font-medium text-gray-400 uppercase tracking-wider">or register with email</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+          </div>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             <div>
@@ -74,7 +105,7 @@ export default function Register() {
               <label htmlFor="password" className="label">Password</label>
               <div className="relative">
                 <input id="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password"
-                  className="input-field pr-10" placeholder="Min. 8 characters" {...register('password')} aria-invalid={!!errors.password} />
+                  className="input-field pr-10" placeholder="Min. 6 characters" {...register('password')} aria-invalid={!!errors.password} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}>
@@ -91,8 +122,8 @@ export default function Register() {
               {errors.confirmPassword && <p className="error-text">{errors.confirmPassword.message}</p>}
             </div>
 
-            <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating account...' : 'Create Account'}
+            <button type="submit" className="btn-primary w-full py-3" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating account...' : 'Create Account (Instant Verification)'}
             </button>
           </form>
 
@@ -105,4 +136,3 @@ export default function Register() {
     </div>
   );
 }
-
